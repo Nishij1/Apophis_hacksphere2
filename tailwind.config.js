@@ -18,6 +18,7 @@ export default {
       },
       fontFamily: {
         sans: ['Poppins', 'system-ui', 'sans-serif'],
+        title:['marathi','system-ui', 'sans-serif']
       },
       fontSize: {
         base: '16px',

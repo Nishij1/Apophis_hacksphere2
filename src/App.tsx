@@ -1,9 +1,10 @@
 import React, { createContext, useState } from 'react';
-import { BrowserRouter as Router } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider } from 'styled-components';
 import { TranslationPanel } from './components/TranslationPanel';
 import { LandingPage } from './components/LandingPage';
 import { Background3D } from './components/Background3D';
+import SearchBarPage from './components/Searchbar';
 import { lightTheme, darkTheme } from './styles/theme';
 
 interface ThemeContextType {
@@ -37,14 +38,17 @@ function App() {
               ? 'bg-gradient-to-br from-gray-900 to-gray-800 text-white' 
               : 'bg-gradient-to-br from-primary-light to-success-light'
           }`}>
-            {showTranslator ? (
-              <>
-                <Background3D />
-                <TranslationPanel />
-              </>
-            ) : (
-              <LandingPage />
-            )}
+            <Routes>
+              <Route path="/" element={<LandingPage />} />
+              <Route path="/translate" element={
+                <>
+                  <Background3D />
+                  <TranslationPanel />
+                </>
+              } />
+              <Route path="/compare" element={<SearchBarPage />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
           </div>
         </ThemeContext.Provider>
       </ThemeProvider>

@@ -56,7 +56,7 @@ const Background3D = () => {
 };
 
 export const LandingPage = () => {
-  const { isDarkMode, toggleDarkMode, setShowTranslator } = useContext(ThemeContext);
+  const { isDarkMode, toggleDarkMode } = useContext(ThemeContext);
   const navigate = useNavigate();
 
   return (
@@ -89,7 +89,7 @@ export const LandingPage = () => {
           >
             <GlowingText
               text="Check आरोग्य"
-              className={`text-5xl md:text-7xl font-bold ${
+              className={`text-5xl md:text-7xl font-bold font-marathi ${
                 isDarkMode ? 'text-white' : 'text-blue-900'
               }`}
             />
@@ -120,7 +120,7 @@ export const LandingPage = () => {
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              onClick={() => setShowTranslator(true)}
+              onClick={() => navigate('/translate')}
               className="relative btn-primary flex items-center gap-2 overflow-hidden"
             >
               <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-blue-600 opacity-0 hover:opacity-100 transition-opacity duration-300" />
@@ -128,15 +128,15 @@ export const LandingPage = () => {
               <ArrowRight size={20} className="relative" />
             </motion.button>
             <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => navigate('/searchbar')}
-                className="relative btn-primary flex items-center gap-2 overflow-hidden"
-                >
-                <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-blue-600 opacity-0 hover:opacity-100 transition-opacity duration-300" />
-                <span className="relative">Compare Report</span>
-                <ArrowRight size={20} className="relative" />
-                </motion.button>
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => navigate('/compare')}
+              className="relative btn-primary flex items-center gap-2 overflow-hidden"
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-blue-600 opacity-0 hover:opacity-100 transition-opacity duration-300" />
+              <span className="relative">Compare Reports</span>
+              <ArrowRight size={20} className="relative" />
+            </motion.button>
           </motion.div>
         </div>
 

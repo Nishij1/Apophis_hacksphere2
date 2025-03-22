@@ -3,11 +3,24 @@ import { motion } from 'framer-motion';
 import { FileText, Volume2, Sun, Moon, Download, Share2, Printer, Plus, Minus, ArrowLeft, Globe2 } from 'lucide-react';
 import { FileUpload } from './FileUpload';
 import { ThemeContext } from '../App';
+import { AITranslationService } from '../lib/aiTranslation';
+import { useNavigate } from 'react-router-dom';
 
 interface TranslationPanelProps {}
 
 const languages = [
   { code: 'en', name: 'English' },
+  { code: 'hi', name: 'Hindi' },
+  { code: 'mr', name: 'Marathi' },
+  { code: 'ta', name: 'Tamil' },
+  { code: 'te', name: 'Telugu' },
+  { code: 'bn', name: 'Bengali' },
+  { code: 'gu', name: 'Gujarati' },
+  { code: 'kn', name: 'Kannada' },
+  { code: 'ml', name: 'Malayalam' },
+  { code: 'or', name: 'Odia' },
+  { code: 'pa', name: 'Punjabi' },
+  { code: 'ur', name: 'Urdu' },
   { code: 'es', name: 'Spanish' },
   { code: 'fr', name: 'French' },
   { code: 'de', name: 'German' },
@@ -20,25 +33,48 @@ const languages = [
   { code: 'ja', name: 'Japanese' },
   { code: 'ko', name: 'Korean' },
   { code: 'ar', name: 'Arabic' },
-  { code: 'hi', name: 'Hindi' },
 ];
 
 export const TranslationPanel: React.FC<TranslationPanelProps> = () => {
-  const { isDarkMode, toggleDarkMode, setShowTranslator } = useContext(ThemeContext);
+  const { isDarkMode, toggleDarkMode } = useContext(ThemeContext);
+  const navigate = useNavigate();
   const [fontSize, setFontSize] = useState(16);
   const [inputText, setInputText] = useState('');
+  const [translatedText, setTranslatedText] = useState('');
   const [isTranslating, setIsTranslating] = useState(false);
-  const [selectedLanguage, setSelectedLanguage] = useState('en');
+  const [sourceLanguage, setSourceLanguage] = useState('en');
+  const [targetLanguage, setTargetLanguage] = useState('es');
+  const [error, setError] = useState<string | null>(null);
 
   const handleFontSizeChange = (size: number) => {
     setFontSize(Math.min(Math.max(size, 16), 24));
   };
 
-  const handleTranslateClick = () => {
+  const handleTranslateClick = async () => {
+    if (!inputText.trim()) {
+      setError('Please enter text to translate');
+      return;
+    }
+
     setIsTranslating(true);
-    setTimeout(() => {
+    setError(null);
+
+    try {
+      const translationService = AITranslationService.getInstance();
+      const result = await translationService.translate({
+        text: inputText,
+        sourceLanguage,
+        targetLanguage
+      });
+
+      setTranslatedText(result.translatedText);
+      setError(null);
+    } catch (err) {
+      console.error('Translation error:', err);
+      setError(err instanceof Error ? err.message : 'Translation failed');
+    } finally {
       setIsTranslating(false);
-    }, 2000);
+    }
   };
 
   const handleFileSelect = (file: File) => {
@@ -50,8 +86,9 @@ export const TranslationPanel: React.FC<TranslationPanelProps> = () => {
   };
 
   const handleExport = () => {
+    if (!translatedText) return;
     const element = document.createElement('a');
-    const file = new Blob([inputText], { type: 'text/plain' });
+    const file = new Blob([translatedText], { type: 'text/plain' });
     element.href = URL.createObjectURL(file);
     element.download = 'medical-translation.txt';
     document.body.appendChild(element);
@@ -60,22 +97,24 @@ export const TranslationPanel: React.FC<TranslationPanelProps> = () => {
   };
 
   const handleShare = async () => {
+    if (!translatedText) return;
     if (navigator.share) {
       try {
         await navigator.share({
           title: 'Medical Translation',
-          text: inputText,
+          text: translatedText,
         });
       } catch (error) {
         console.error('Error sharing:', error);
       }
     } else {
-      navigator.clipboard.writeText(inputText);
+      navigator.clipboard.writeText(translatedText);
       alert('Content copied to clipboard!');
     }
   };
 
   const handlePrint = () => {
+    if (!translatedText) return;
     const printWindow = window.open('', '_blank');
     if (printWindow) {
       printWindow.document.write(`
@@ -90,7 +129,7 @@ export const TranslationPanel: React.FC<TranslationPanelProps> = () => {
           <body>
             <div class="content">
               <h1>Medical Translation</h1>
-              <div>${inputText}</div>
+              <div>${translatedText}</div>
             </div>
           </body>
         </html>
@@ -111,7 +150,7 @@ export const TranslationPanel: React.FC<TranslationPanelProps> = () => {
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            onClick={() => setShowTranslator(false)}
+            onClick={() => navigate('/')}
             className={`p-3 rounded-full transition-all duration-300 ${
               isDarkMode 
                 ? 'bg-gray-700 text-white hover:bg-gray-600' 
@@ -139,13 +178,31 @@ export const TranslationPanel: React.FC<TranslationPanelProps> = () => {
           }`}>
             <Globe2 size={20} className={isDarkMode ? 'text-white' : 'text-gray-600'} />
             <select
-              value={selectedLanguage}
-              onChange={(e) => setSelectedLanguage(e.target.value)}
+              value={sourceLanguage}
+              onChange={(e) => setSourceLanguage(e.target.value)}
               className={`px-3 py-1 rounded-full outline-none ${
                 isDarkMode 
                   ? 'bg-gray-700 text-white border-gray-600' 
                   : 'bg-white text-gray-800 border-gray-200'
               }`}
+              disabled={isTranslating}
+            >
+              {languages.map((lang) => (
+                <option key={lang.code} value={lang.code}>
+                  {lang.name}
+                </option>
+              ))}
+            </select>
+            <span className={isDarkMode ? 'text-white' : 'text-gray-600'}>→</span>
+            <select
+              value={targetLanguage}
+              onChange={(e) => setTargetLanguage(e.target.value)}
+              className={`px-3 py-1 rounded-full outline-none ${
+                isDarkMode 
+                  ? 'bg-gray-700 text-white border-gray-600' 
+                  : 'bg-white text-gray-800 border-gray-200'
+              }`}
+              disabled={isTranslating}
             >
               {languages.map((lang) => (
                 <option key={lang.code} value={lang.code}>
@@ -208,6 +265,45 @@ export const TranslationPanel: React.FC<TranslationPanelProps> = () => {
           <div className={`rounded-2xl shadow-xl backdrop-blur-lg p-6 ${
             isDarkMode ? 'bg-gray-800 bg-opacity-90' : 'bg-white bg-opacity-90'
           }`}>
+            <div className={`flex items-center gap-2 rounded-full p-2 mb-4 ${
+              isDarkMode ? 'bg-gray-700' : 'bg-white shadow-lg'
+            }`}>
+              <Globe2 size={20} className={isDarkMode ? 'text-white' : 'text-gray-600'} />
+              <select
+                value={sourceLanguage}
+                onChange={(e) => setSourceLanguage(e.target.value)}
+                className={`px-3 py-1 rounded-full outline-none ${
+                  isDarkMode 
+                    ? 'bg-gray-700 text-white border-gray-600' 
+                    : 'bg-white text-gray-800 border-gray-200'
+                }`}
+                disabled={isTranslating}
+              >
+                {languages.map((lang) => (
+                  <option key={lang.code} value={lang.code}>
+                    {lang.name}
+                  </option>
+                ))}
+              </select>
+              <span className={isDarkMode ? 'text-white' : 'text-gray-600'}>→</span>
+              <select
+                value={targetLanguage}
+                onChange={(e) => setTargetLanguage(e.target.value)}
+                className={`px-3 py-1 rounded-full outline-none ${
+                  isDarkMode 
+                    ? 'bg-gray-700 text-white border-gray-600' 
+                    : 'bg-white text-gray-800 border-gray-200'
+                }`}
+                disabled={isTranslating}
+              >
+                {languages.map((lang) => (
+                  <option key={lang.code} value={lang.code}>
+                    {lang.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <FileUpload onFileSelect={handleFileSelect} />
             <div className="mt-4">
               <textarea
@@ -220,6 +316,7 @@ export const TranslationPanel: React.FC<TranslationPanelProps> = () => {
                 placeholder="Paste your medical text here..."
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
+                disabled={isTranslating}
               />
             </div>
           </div>
@@ -227,9 +324,9 @@ export const TranslationPanel: React.FC<TranslationPanelProps> = () => {
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              className="btn-primary flex items-center gap-2"
+              className={`btn-primary flex items-center gap-2 ${isTranslating ? 'opacity-70 cursor-not-allowed' : ''}`}
               onClick={handleTranslateClick}
-              disabled={isTranslating}
+              disabled={isTranslating || !inputText.trim()}
             >
               <FileText size={20} />
               {isTranslating ? 'Translating...' : 'Translate'}
@@ -238,11 +335,23 @@ export const TranslationPanel: React.FC<TranslationPanelProps> = () => {
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               className="btn-primary flex items-center gap-2"
+              disabled={isTranslating}
             >
               <Volume2 size={20} />
               Read Aloud
             </motion.button>
           </div>
+          {error && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className={`p-4 rounded-lg ${
+                isDarkMode ? 'bg-red-900 text-red-100' : 'bg-red-100 text-red-800'
+              }`}
+            >
+              {error}
+            </motion.div>
+          )}
         </motion.div>
 
         <motion.div 
@@ -257,25 +366,21 @@ export const TranslationPanel: React.FC<TranslationPanelProps> = () => {
               ? 'text-white' 
               : 'bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-green-500'
           }`}>
-            Simplified Version
+            Translation
           </h2>
           <div 
             className="prose"
             style={{ fontSize: `${fontSize}px` }}
           >
-            <p className={`mb-4 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-              Your simplified text will appear here. Medical terms will be
-              <motion.span 
-                className="medical-term mx-2"
-                whileHover={{ scale: 1.05 }}
-              >
-                highlighted
-                <span className={`tooltip ${isDarkMode ? 'bg-gray-700 text-white' : 'bg-white text-gray-700'}`}>
-                  Terms will show simple explanations when you hover over them
-                </span>
-              </motion.span>
-              for easy understanding.
-            </p>
+            {translatedText ? (
+              <p className={`mb-4 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                {translatedText}
+              </p>
+            ) : (
+              <p className={`mb-4 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                Your translated text will appear here...
+              </p>
+            )}
           </div>
           <motion.div 
             className="flex gap-4 mt-6"
@@ -286,8 +391,9 @@ export const TranslationPanel: React.FC<TranslationPanelProps> = () => {
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              className="btn-primary flex items-center gap-2"
+              className={`btn-primary flex items-center gap-2 ${!translatedText ? 'opacity-50 cursor-not-allowed' : ''}`}
               onClick={handleExport}
+              disabled={!translatedText}
             >
               <Download size={20} />
               Export
@@ -295,8 +401,9 @@ export const TranslationPanel: React.FC<TranslationPanelProps> = () => {
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              className="btn-primary flex items-center gap-2"
+              className={`btn-primary flex items-center gap-2 ${!translatedText ? 'opacity-50 cursor-not-allowed' : ''}`}
               onClick={handleShare}
+              disabled={!translatedText}
             >
               <Share2 size={20} />
               Share
@@ -304,8 +411,9 @@ export const TranslationPanel: React.FC<TranslationPanelProps> = () => {
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              className="btn-primary flex items-center gap-2"
+              className={`btn-primary flex items-center gap-2 ${!translatedText ? 'opacity-50 cursor-not-allowed' : ''}`}
               onClick={handlePrint}
+              disabled={!translatedText}
             >
               <Printer size={20} />
               Print

@@ -1,147 +1,54 @@
-import { createClient } from '@supabase/supabase-js';
-import { User } from '@supabase/supabase-js';
-
-// Initialize Supabase client
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
-// Rate limit configuration
-const RATE_LIMITS = {
-  deepseek: {
-    tokensPerHour: 100,  // 100 translations per hour
-    refillInterval: 3600000, // 1 hour in milliseconds
-  },
-  chatgpt: {
-    tokensPerHour: 50,   // 50 translations per hour
-    refillInterval: 3600000, // 1 hour in milliseconds
-  }
-};
+import { supabase, isSupabaseConfigured } from './supabase/client';
 
 export class RateLimiter {
   private static instance: RateLimiter;
-  private user: User | null = null;
+  private limits: Map<string, { count: number; timestamp: number }> = new Map();
+  private readonly WINDOW_MS = 60 * 1000; // 1 minute
+  private readonly MAX_REQUESTS = 30; // 30 requests per minute
 
-  private constructor() {
-    this.initializeUser();
-  }
+  private constructor() {}
 
-  private async initializeUser() {
-    const { data: { user } } = await supabase.auth.getUser();
-    this.user = user;
-  }
-
-  public static getInstance(): RateLimiter {
+  static getInstance(): RateLimiter {
     if (!RateLimiter.instance) {
       RateLimiter.instance = new RateLimiter();
     }
     return RateLimiter.instance;
   }
 
-  private async getRateLimit(apiType: 'deepseek' | 'chatgpt'): Promise<number> {
-    if (!this.user) {
-      throw new Error('User not authenticated');
+  private getRateLimit(userId: string): { count: number; timestamp: number } {
+    const now = Date.now();
+    const limit = this.limits.get(userId);
+
+    if (!limit || now - limit.timestamp > this.WINDOW_MS) {
+      return { count: 0, timestamp: now };
     }
 
-    const { data, error } = await supabase
-      .from('rate_limits')
-      .select('*')
-      .eq('user_id', this.user.id)
-      .eq('api_type', apiType)
-      .single();
-
-    if (error) {
-      if (error.code === 'PGRST116') {
-        // No rate limit record exists, create one
-        await this.initializeRateLimit(apiType);
-        return RATE_LIMITS[apiType].tokensPerHour;
-      }
-      throw error;
-    }
-
-    // Check if we need to refill tokens
-    const now = new Date();
-    const lastRefill = new Date(data.last_refill);
-    const timeSinceLastRefill = now.getTime() - lastRefill.getTime();
-
-    if (timeSinceLastRefill >= RATE_LIMITS[apiType].refillInterval) {
-      // Refill tokens
-      await this.refillTokens(apiType);
-      return RATE_LIMITS[apiType].tokensPerHour;
-    }
-
-    return data.tokens_remaining;
+    return limit;
   }
 
-  private async initializeRateLimit(apiType: 'deepseek' | 'chatgpt'): Promise<void> {
-    if (!this.user) {
-      throw new Error('User not authenticated');
+  async checkRateLimit(userId: string): Promise<boolean> {
+    const limit = this.getRateLimit(userId);
+    const now = Date.now();
+
+    if (now - limit.timestamp > this.WINDOW_MS) {
+      this.limits.set(userId, { count: 1, timestamp: now });
+      return true;
     }
 
-    const { error } = await supabase
-      .from('rate_limits')
-      .insert({
-        user_id: this.user.id,
-        api_type: apiType,
-        tokens_remaining: RATE_LIMITS[apiType].tokensPerHour,
-        last_refill: new Date().toISOString()
-      });
-
-    if (error) {
-      throw error;
-    }
-  }
-
-  private async refillTokens(apiType: 'deepseek' | 'chatgpt'): Promise<void> {
-    if (!this.user) {
-      throw new Error('User not authenticated');
-    }
-
-    const { error } = await supabase
-      .from('rate_limits')
-      .update({
-        tokens_remaining: RATE_LIMITS[apiType].tokensPerHour,
-        last_refill: new Date().toISOString()
-      })
-      .eq('user_id', this.user.id)
-      .eq('api_type', apiType);
-
-    if (error) {
-      throw error;
-    }
-  }
-
-  private async consumeToken(apiType: 'deepseek' | 'chatgpt'): Promise<void> {
-    if (!this.user) {
-      throw new Error('User not authenticated');
-    }
-
-    const { error } = await supabase.rpc('consume_rate_limit_token', {
-      p_user_id: this.user.id,
-      p_api_type: apiType
-    });
-
-    if (error) {
-      throw error;
-    }
-  }
-
-  public async checkRateLimit(apiType: 'deepseek' | 'chatgpt'): Promise<boolean> {
-    try {
-      const tokensRemaining = await this.getRateLimit(apiType);
-      return tokensRemaining > 0;
-    } catch (error) {
-      console.error('Rate limit check failed:', error);
+    if (limit.count >= this.MAX_REQUESTS) {
       return false;
     }
+
+    this.limits.set(userId, { count: limit.count + 1, timestamp: limit.timestamp });
+    return true;
   }
 
-  public async consumeRateLimit(apiType: 'deepseek' | 'chatgpt'): Promise<void> {
-    try {
-      await this.consumeToken(apiType);
-    } catch (error) {
-      console.error('Failed to consume rate limit token:', error);
-      throw error;
-    }
+  async getRemainingRequests(userId: string): Promise<number> {
+    const limit = this.getRateLimit(userId);
+    return Math.max(0, this.MAX_REQUESTS - limit.count);
+  }
+
+  async resetRateLimit(userId: string): Promise<void> {
+    this.limits.delete(userId);
   }
 } 
