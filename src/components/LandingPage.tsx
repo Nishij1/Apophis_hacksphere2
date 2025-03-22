@@ -114,11 +114,11 @@ export const LandingPage = () => {
             className="relative"
           >
             <GlowingText
-              text="Medical Jargon"
+              text="Check Arogya"
               className={`text-5xl md:text-7xl font-bold ${titleClasses}`}
             />
             <GlowingText
-              text="Translator"
+              text="AI"
               delay={0.2}
               className={`text-5xl md:text-7xl font-bold mt-2 ${titleClasses}`}
             />
